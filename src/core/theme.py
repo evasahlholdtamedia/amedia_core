@@ -26,10 +26,10 @@ palette = [
     colors.magenta, 
     colors.gronn, 
     colors.varmgra,
-    colors.svart,
-    colors.lys_gul,
     colors.mork_magenta, 
     colors.mork_gronn,
+    colors.lys_gul,
+    colors.svart,
     colors.hvit
 ]
 

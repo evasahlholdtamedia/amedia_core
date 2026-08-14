@@ -8,6 +8,12 @@ from core.get_client import get_client, BILLING_PROJECT
 from google.api_core import exceptions
 from pathlib import Path
 
+## TO BE ADDED: 
+
+# Function for grid control 
+
+# "Skeleton" for SQL queries
+
 def run_sql(query: str, billing_project: str = BILLING_PROJECT):
     '''Query GCP and return a dataframe. 
     Args:
@@ -84,29 +90,130 @@ def load(filename, parent_folder=None):
         base = Path.cwd()
     return pd.read_csv(base / "data" / filename)
 
-def trim_string_columns(df):
-    """Trim strings columns in a dataframe.
-    """
-    for col in df.columns:
-        if pd.api.types.is_string_dtype(df[col]):
-            df[col] = df[col].str.strip()
-    return df
 
-def clean_columns(df):
-    """Lowercase column names, strip whitespace, and collapse whitespace and
-    repeated underscores into single underscores."""
+def _clean_columns(df):
+    """Normalise column names: lowercase, strip, collapse whitespace and
+    repeated underscores. Handles non-string names, MultiIndex and duplicates."""
     df = df.copy()
-    df.columns = [re.sub(r"[\s_]+", "_", c.strip().lower()).strip("_") for c in df.columns]
+
+    def clean(name):
+        if isinstance(name, tuple):
+            parts = [clean(p) for p in name if p is not None]
+            return "_".join(p for p in parts if p) or "column"
+        text = re.sub(r"[\s_]+", "_", str(name).strip().lower()).strip("_")
+        return text or "column"
+
+    seen, names = {}, []
+    for raw in df.columns:
+        name = clean(raw)
+        if name in seen:
+            seen[name] += 1
+            name = f"{name}_{seen[name]}"
+        else:
+            seen[name] = 0
+        names.append(name)
+
+    df.columns = names
     return df
 
-def drop_empty(df, axis=1):
+def _trim_strings(df):
+    """Strip leading and trailing whitespace from string values."""
+    df = df.copy()
+    for i, dtype in enumerate(df.dtypes):
+        s = df.iloc[:, i]
+        if isinstance(dtype, pd.StringDtype):
+            df.isetitem(i, s.str.strip())
+        elif dtype == object:
+            df.isetitem(i, s.map(lambda x: x.strip() if isinstance(x, str) else x))
+    return df
+
+def _blank_to_na(df):
+    """Convert empty and whitespace-only strings to NA."""
+    df = df.copy()
+    for i, dtype in enumerate(df.dtypes):
+        if not (dtype == object or isinstance(dtype, pd.StringDtype)):
+            continue
+        s = df.iloc[:, i]
+        blank = s.map(lambda x: isinstance(x, str) and x.strip() == "")
+        blank = blank.fillna(False).astype(bool)
+        if blank.any():
+            df.isetitem(i, s.mask(blank, pd.NA))
+    return df
+
+def _drop_empty(df, axis=1):
     """Drop all-null columns (axis=1) or rows (axis=0)."""
+    if df.shape[1 - axis] == 0:
+        return df.copy()
     return df.dropna(axis=axis, how="all")
 
-def blank_to_na(df):
-    """Convert empty strings and whitespace-only strings to NaN."""
+def _round_numerics(df, decimals):
+    """Round float columns to a given number of decimals."""
     df = df.copy()
-    for col in df.select_dtypes(include="object"):
-        df[col] = df[col].replace(r"^\s*$", pd.NA, regex=True)
+    if decimals is None:
+        return df
+    for i, dtype in enumerate(df.dtypes):
+        if pd.api.types.is_float_dtype(dtype):
+            df.isetitem(i, df.iloc[:, i].round(decimals))
     return df
 
+def format_dataframe(df, decimals=2):
+    """Format a pd.DataFrame to custom standards:
+    - Clean column names
+    - Trim strings and convert blanks to NA
+    - Drop all-null columns
+    - Round float columns: default 2 decimals
+    """
+    df = _clean_columns(df)
+    df = _trim_strings(df)
+    df = _blank_to_na(df)
+    df = _drop_empty(df)
+    df = _round_numerics(df, decimals)
+    return df
+
+_unit_scale = {
+    None: (1, None),
+    "tusen": (1e3, "tusen"),
+    "T": (1e3, "tusinn"),
+    "1000": (1e3, "tusinn"),
+    "mill": (1e6, "M"),
+    "M": (1e6, "M"),
+    "mil": (1e6, "M"),
+    "million": (1e6, "M"),
+    "millioner": (1e6, "M"),
+    "1000000": (1e6, "M"),
+}
+
+def format_numbers(value, scale=None, decimals=2, unit=None):
+    '''
+    Format a number using Norwegian conventions: space as thousands separator
+    and comma as decimal separator.
+
+    Args:
+        value (float | int): The number to format.
+        scale (str, optional): Scale to divide by. 
+            None (default) leaves the value unscaled.
+        decimals (int): Number of decimals. Defaults to 2.
+        unit (str, optional): String appended after the number, e.g. 'kr'
+            or '%'. Defaults to None (nothing appended).
+
+    Returns:
+        str: The formatted number, e.g. set_value(1234567.8, 'mill', 1, 'kr')
+            returns '1,2 mill. kr'.
+    '''
+    if scale not in _unit_scale:
+        valid = ", ".join(repr(k) for k in _unit_scale)
+        raise ValueError(f"unit must be one of {valid}, got {scale!r}")
+
+    if value is None or pd.isna(value):
+        return "–"
+
+    divisor, scale_label = _unit_scale[scale]
+    text = f"{value / divisor:,.{decimals}f}".replace(",", "\u00a0").replace(".", ",")
+
+    parts = [text]
+    if scale_label:
+        parts.append(scale_label)
+    if unit:
+        parts.append(unit)
+
+    return "\u00a0".join(parts)
