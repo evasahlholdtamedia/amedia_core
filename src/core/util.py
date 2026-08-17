@@ -146,6 +146,32 @@ def _drop_empty(df, axis=1):
         return df.copy()
     return df.dropna(axis=axis, how="all")
 
+def _coerce_numeric_columns(df, integers=True):
+    """Convert string columns whose values are all numeric into Int64 or Float64.
+
+    Float: Columns with at least one decimal number
+    Int: Columns with whole numbers only
+
+    Columns with any non-numeric value, ambiguous commas, or leading zeros are
+    left untouched.
+    """
+    plain = re.compile(r"^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$")
+    grouped = re.compile(r"^[+-]?\d{1,3}(,\d{3})+(\.\d+)?$")
+    df = df.copy()
+    for i in range(df.shape[1]):
+        dtype = df.dtypes.iloc[i]
+        if not (dtype == object or isinstance(dtype, pd.StringDtype)): continue
+        values = df.iloc[:, i]
+        non_null = values.dropna()
+        if non_null.empty or not all(isinstance(v, str) for v in non_null): continue
+        stripped = non_null.str.strip()
+        if not stripped.map(lambda v: bool(plain.match(v) or grouped.match(v))).all(): continue
+        if stripped.str.match(r"^[+-]?0\d").any(): continue
+        numbers = pd.to_numeric(values.str.strip().str.replace(",", "", regex=False), errors="coerce")
+        if integers and numbers.dropna().mod(1).eq(0).all() and numbers.abs().max() < 2**53: df.isetitem(i, numbers.astype("Int64"))
+        else: df.isetitem(i, numbers.astype("Float64"))
+    return df
+
 def _round_numerics(df, decimals):
     """Round float columns to a given number of decimals."""
     df = df.copy()
@@ -167,6 +193,7 @@ def format_dataframe(df, decimals=2):
     df = _trim_strings(df)
     df = _blank_to_na(df)
     df = _drop_empty(df)
+    df = _coerce_numeric_columns(df)
     df = _round_numerics(df, decimals)
     return df
 
@@ -187,6 +214,8 @@ def format_numbers(value, scale=None, decimals=2, unit=None):
     '''
     Format a number using Norwegian conventions: space as thousands separator
     and comma as decimal separator.
+
+    Mainly intended for visualisations.
 
     Args:
         value (float | int): The number to format.
