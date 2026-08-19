@@ -17,7 +17,10 @@ class DotDict(dict):
 colors_dict = {
     "MAGENTA": "#BE0064", "GRONN": "#004E46", "SVART": "#000000", 
     "HVIT": "#FFFFFF", "LYS_GUL": "#F8F9DF", "VARMGRA": "#EBDCD7", 
-    "MORK_MAGENTA": "#500020", "MORK_GRONN": "#002C22"
+    "MORK_MAGENTA": "#500020", "MORK_GRONN": "#002C22", 
+    "BLA": "#1B4F8F", "LYS_BLA": "#7FA9D4", "ROD": "#D6402E",
+    "ORANSJE": "#E8873B", "LYS_GRONN": "#6FA85C", "GULL": "#C9A227",
+    "PLOMME": "#6B4C7A", "MORK_GRA": "#3F3A38", "GRA": "#8A807A",
 }
 
 colors = DotDict(colors_dict)
