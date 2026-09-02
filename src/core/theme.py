@@ -17,7 +17,7 @@ class DotDict(dict):
 plot_standards_dict = {
     "w": 14, "h": 8,
     "line_width": 1, "marker_size": 1, 
-    "bar_width": 0.5, "bar_gap": 0.1, "cluster_bar_gap": 0.01,
+    "bar_width": 0.35, "bar_gap": 0.1, "cluster_bar_gap": 0.01,
     "legend_cols": 1}
 
 ps = DotDict(plot_standards_dict)
@@ -78,7 +78,7 @@ def apply_style():
         'axes.titleweight': 'bold', 'axes.labelweight': 'bold',
         'legend.loc': 'upper right', 'legend.fontsize': 8,
         'axes.grid': True, 'axes.grid.axis': 'y', 'axes.axisbelow': True,
-        'axes.titlesize': 16, 'axes.labelsize': 8, 'xtick.labelsize': 8, 
+        'axes.titlesize': 16, 'axes.labelsize': 12, 'xtick.labelsize': 8, 
         'ytick.labelsize': 8, 'figure.titlesize': 12,
     })
 

@@ -32,17 +32,24 @@ def get_functions():
         print()
 
 def run_sql(query: str, billing_project: str = BILLING_PROJECT):
-    '''Query GCP and return a dataframe. 
+    '''
+    Query GCP and return a dataframe. 
+    
     Args:
         query: SQL query
         billing_project: Custom billing project; defaults to "amedia-analytics-eu"
+    
+    Returns:
+        pd.DataFrame: Dataframe with queryed data.    
     '''
     client = get_client(billing_project)
     print("Running query...")
     return client.query(query).to_dataframe()
 
 def save(df, filename):
-    """Saves a DataFrame as a CSV in the 'data' folder within the CWD.
+    """
+    Saves a DataFrame as a CSV in the 'data' folder within the cwd.
+    
     Args:
         df (pd.DataFrame): The DataFrame to export.
         filename (str): The desired name of the file.
@@ -60,8 +67,12 @@ def save(df, filename):
     df.to_csv(export_path, index=False)
 
 def save_xlsx(df, filename):
-    """Save a DataFrame as .xlsx with frozen header panes in the 'data' folder
-    within the current working directory.
+    """
+    Saves a DataFrame as .xlsx with frozen header panes in the 'data' folder within the cwd.
+
+    Args:
+        df (pd.DataFrame): The DataFrame to export.
+        filename (str): The desired name of the file.
     """
     df_export = df.copy()
 
@@ -82,8 +93,15 @@ def save_xlsx(df, filename):
         writer.sheets["Sheet1"].freeze_panes = "A2"
 
 def save_fig(fig, name, folder=None, dpi=200):
-    """Save a plot figure. Default location: data/plots in the current working
-    directory (created if it does not exist)."""
+    """
+    Saves a plot figure in data/plots in the cwd.
+
+    Args:
+        fig: The figure element 
+        name: A suitable figure name
+        folder: Defaults to data/plots, but can be overwritten.
+        dpi: Pixel resolutions, defaults to 200.
+    """
     folder = Path.cwd() / "data" / "plots" if folder is None else Path(folder)
     folder.mkdir(parents=True, exist_ok=True)
     slug = name.lower().translate(str.maketrans({"æ": "ae", "ø": "o", "å": "a"}))
@@ -92,10 +110,13 @@ def save_fig(fig, name, folder=None, dpi=200):
     fig.savefig(path, dpi=dpi, bbox_inches="tight")
 
 def load(filename, parent_folder=None):
-    """Loads a CSV file from the 'data' folder within the CWD.
+    """
+    Loads a CSV file from the 'data' folder within the CWD.
+    
     Args:
         filename (str): The name of the CSV file to load.
         parent_folder (str): Optional name of a parent folder to search upward for. If provided, looks for 'data' folder inside that parent instead of CWD.
+    
     Returns:
         pd.DataFrame: The loaded DataFrame.
     """
@@ -107,10 +128,14 @@ def load(filename, parent_folder=None):
         base = Path.cwd()
     return pd.read_csv(base / "data" / filename)
 
-
 def _clean_columns(df):
-    """Normalise column names: lowercase, strip, collapse whitespace and
-    repeated underscores. Handles non-string names, MultiIndex and duplicates."""
+    """
+    Internal function. 
+
+    Normalises column names: lowercase, strip, collapse whitespace and repeated underscores. 
+    
+    Handles non-string names, MultiIndex and duplicates.
+    """
     df = df.copy()
 
     def clean(name):
@@ -134,7 +159,11 @@ def _clean_columns(df):
     return df
 
 def _trim_strings(df):
-    """Strip leading and trailing whitespace from string values."""
+    """
+    Internal function.
+    
+    Strip leading and trailing whitespace from string values.
+    """
     df = df.copy()
     for i, dtype in enumerate(df.dtypes):
         s = df.iloc[:, i]
@@ -145,7 +174,11 @@ def _trim_strings(df):
     return df
 
 def _blank_to_na(df):
-    """Convert empty and whitespace-only strings to NA."""
+    """
+    Internal function.
+    
+    Convert empty and whitespace-only strings to NA.
+    """
     df = df.copy()
     for i, dtype in enumerate(df.dtypes):
         if not (dtype == object or isinstance(dtype, pd.StringDtype)):
@@ -158,19 +191,25 @@ def _blank_to_na(df):
     return df
 
 def _drop_empty(df, axis=1):
-    """Drop all-null columns (axis=1) or rows (axis=0)."""
+    """
+    Internal function.
+    
+    Drop all-null columns (axis=1) or rows (axis=0).
+    """
     if df.shape[1 - axis] == 0:
         return df.copy()
     return df.dropna(axis=axis, how="all")
 
 def _coerce_numeric_columns(df, integers=True):
-    """Convert string columns whose values are all numeric into Int64 or Float64.
+    """
+    Internal function.
+    
+    Convert string columns whose values are all numeric into Int64 or Float64.
 
     Float: Columns with at least one decimal number
     Int: Columns with whole numbers only
 
-    Columns with any non-numeric value, ambiguous commas, or leading zeros are
-    left untouched.
+    Columns with any non-numeric value, ambiguous commas, or leading zeros areleft untouched.
     """
     plain = re.compile(r"^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$")
     grouped = re.compile(r"^[+-]?\d{1,3}(,\d{3})+(\.\d+)?$")
@@ -190,7 +229,11 @@ def _coerce_numeric_columns(df, integers=True):
     return df
 
 def _round_numerics(df, decimals):
-    """Round float columns to a given number of decimals."""
+    """
+    Internal function.
+    
+    Round float columns to a given number of decimals.
+    """
     df = df.copy()
     if decimals is None:
         return df
@@ -200,11 +243,18 @@ def _round_numerics(df, decimals):
     return df
 
 def format_dataframe(df, decimals=2):
-    """Format a pd.DataFrame to custom standards:
-    - Clean column names
-    - Trim strings and convert blanks to NA
-    - Drop all-null columns
-    - Round float columns: default 2 decimals
+    """
+    Format a pd.DataFrame to custom standards:
+    - Normalises column names: lowercase, strip, collapse whitespace and repeated underscores. 
+    - Trims strings and convert blanks to NA.
+    - Drops all-null columns.
+    - Rounds float columns to default 2 decimals.
+    
+    Args: 
+        decimals: Int. Number of decimals to round to.
+
+    Returns:
+        df: Formatted dataframe.
     """
     df = _clean_columns(df)
     df = _trim_strings(df)
@@ -229,22 +279,19 @@ _unit_scale = {
 
 def format_numbers(value, scale=None, decimals=2, unit=None):
     '''
-    Format a number using Norwegian conventions: space as thousands separator
+    Formats a number using Norwegian conventions: Space as thousands separator
     and comma as decimal separator.
 
     Mainly intended for visualisations.
 
     Args:
         value (float | int): The number to format.
-        scale (str, optional): Scale to divide by. 
-            None (default) leaves the value unscaled.
+        scale (str, optional): Scale to divide by. None (default) leaves the value unscaled.
         decimals (int): Number of decimals. Defaults to 2.
-        unit (str, optional): String appended after the number, e.g. 'kr'
-            or '%'. Defaults to None (nothing appended).
+        unit (str, optional): String appended after the number, e.g. 'kr' or '%'. Defaults to None (nothing appended).
 
     Returns:
-        str: The formatted number, e.g. set_value(1234567.8, 'mill', 1, 'kr')
-            returns '1,2 mill. kr'.
+        str: The formatted number.
     '''
     if scale not in _unit_scale:
         valid = ", ".join(repr(k) for k in _unit_scale)
@@ -265,7 +312,8 @@ def format_numbers(value, scale=None, decimals=2, unit=None):
     return "\u00a0".join(parts)
 
 def filter_timeframe(df, date_field=None, years=None, current_year=False, yoy=False, full_years=False, start_date=None, end_date=None):
-    """Utility function to filter for a specific period in a dataframe. 
+    """
+    Utility function to filter for a specific period in a dataframe. 
 
     Defaults to full date range if nothing is defined.
     
@@ -281,7 +329,7 @@ def filter_timeframe(df, date_field=None, years=None, current_year=False, yoy=Fa
         
     Returns:
         df: Dataframe filtered according to parameters
-        """
+    """
     months = ["januar", "februar", "mars", "april", "mai", "juni", "juli",
                 "august", "september", "oktober", "november", "desember"]
     
@@ -369,11 +417,14 @@ def filter_timeframe(df, date_field=None, years=None, current_year=False, yoy=Fa
     return result, period_label
 
 def _validate_timeseries(df, date_field=None, cycle="yearly", granularity="monthly", group_field=None):
-    """Utility function to validate if there is sufficient data for time series analyses.
+    """
+    Internal function. 
+
+    Validates if there is sufficient data for time series analyses.
 
     Prints missing granularity periods within each cycle period, for the dataset as
     a whole or separately for each group. Weekly granularity uses ISO week numbers
-    (Monday-start), not pandas' default Sunday-anchored weeks.
+    (Monday-start).
 
     Args:
         df: Dataframe
@@ -383,7 +434,7 @@ def _validate_timeseries(df, date_field=None, cycle="yearly", granularity="month
         granularity: The smaller period that should be present within each cycle.
             One of: "quarterly", "monthly", "weekly", "daily", "hourly"
         group_field: Optional column to check completeness separately per group
-        """
+    """
     freq_map = {
         "yearly": "Y", "quarterly": "Q", "monthly": "M",
         "weekly": "W", "daily": "D", "hourly": "h"}
@@ -448,17 +499,17 @@ def _validate_timeseries(df, date_field=None, cycle="yearly", granularity="month
                 print(f"Warning: Missing data{group_label} in {cycle_val}. Missing periods ({granularity}): {missing_labels}")
 
 def get_timeseries_periods(df, date_field=None, cycle="yearly", granularity="monthly", group_field=None):
-    """Utility function to:
-        - Get data periodized after granularity (e.g. by month) 
-        - Get period time_labels for plots (e.g. labels like jan, feb, ...)
-        - Validate data completeness in the cycle
-
-    Returns period time_labels for the unique periods present in df[date_field], sorted
-    chronologically, formatted according to Amedia visual conventions.
+    """
+    
+    Get data and labels periodized after granularity.
+        Get data periodized after granularity (e.g. by month) 
+        Get period time_labels for plots (e.g. labels like jan, feb, ...)
+        Validate data completeness in the cycle
 
     Args: 
         df: Dataframe
         date_field: Date field to base period time_labels on
+        cycle: What constitutes a cycle; usually default (yearly) is relevant.
         granularity: Period intervals. Takes "yearly", "quarterly", "monthly", "weekly", "daily", "hourly".
 
     Returns:
