@@ -7,12 +7,29 @@ import pandas as pd
 from core.get_client import get_client, BILLING_PROJECT
 from google.api_core import exceptions
 from pathlib import Path
+from datetime import datetime, date
+import sys
+import inspect
 
 ## TO BE ADDED: 
 
-# Function for grid control 
-
 # "Skeleton" for SQL queries
+
+def get_functions():
+    """Lists all utility functions available in this module with their signatures and docstrings."""
+    current_module = sys.modules[__name__]
+
+    for name, func in sorted(inspect.getmembers(current_module, inspect.isfunction)):
+        if name.startswith("_") or name == "get_functions":
+            continue
+        if func.__module__ != current_module.__name__:
+            continue
+
+        signature = inspect.signature(func)
+        docstring = inspect.getdoc(func) or "No docstring."
+        print(f"{name}{signature}")
+        print(f"    {docstring}")
+        print()
 
 def run_sql(query: str, billing_project: str = BILLING_PROJECT):
     '''Query GCP and return a dataframe. 
@@ -231,7 +248,7 @@ def format_numbers(value, scale=None, decimals=2, unit=None):
     '''
     if scale not in _unit_scale:
         valid = ", ".join(repr(k) for k in _unit_scale)
-        raise ValueError(f"unit must be one of {valid}, got {scale!r}")
+        raise ValueError(f"scale must be one of {valid}, got {scale!r}")
 
     if value is None or pd.isna(value):
         return "–"
@@ -246,3 +263,291 @@ def format_numbers(value, scale=None, decimals=2, unit=None):
         parts.append(unit)
 
     return "\u00a0".join(parts)
+
+def filter_timeframe(df, date_field=None, years=None, current_year=False, yoy=False, full_years=False, start_date=None, end_date=None):
+    """Utility function to filter for a specific period in a dataframe. 
+
+    Defaults to full date range if nothing is defined.
+    
+    Args: 
+        df: Dataframe
+        date_field: The date columm to utilise
+        years: Specific years provided as a list, e.g. [2025, 2026]
+        current_year: If True, includes only data from the current year
+        yoy: If True, gets data from current year and same period in previous year
+        full_years: If True, gets data from all completed years in the dataset
+        start_date: None, if given sets a start date. Format: "2026-12-31" (year-month-day)
+        end_date: None, if givens sets an end date. Format: "2026-12-31" (year-month-day)
+        
+    Returns:
+        df: Dataframe filtered according to parameters
+        """
+    months = ["januar", "februar", "mars", "april", "mai", "juni", "juli",
+                "august", "september", "oktober", "november", "desember"]
+    
+    if date_field is None:
+        if "revenue_date" in df.columns:
+            date_field = "revenue_date"
+            print("Setting revenue_date as default date field.")
+        elif "campaign_start_ts" in df.columns:
+            date_field = "campaign_start_ts"
+            print("Setting campaign_start_ts as default date field.")
+        else:
+            candidates = [c for c in df.columns if "date" in c.lower()]
+            if candidates:
+                date_field = candidates[0]
+                print(f"Setting {date_field} as default date field.")
+            else:
+                raise ValueError("Provide date_field.")
+
+    if sum([bool(years), current_year, yoy, full_years]) > 1:
+        raise ValueError("Specify only one of years (specific years defined in a list), current_year (bool), yoy (bool), or full_years (bool).")
+
+    if (start_date is not None or end_date is not None) and sum([bool(years), current_year, yoy, full_years]) > 0:
+        raise ValueError("Specify either start/end date OR year-based parameter.")
+
+    d = df.copy()
+    d[date_field] = pd.to_datetime(d[date_field])
+
+    today_year = date.today().year
+
+    if start_date is not None or end_date is not None:
+        result = d
+        if start_date is not None:
+            result = result[result[date_field] >= pd.to_datetime(start_date)]
+            start, end = result[date_field].min(), result[date_field].max()
+            period_label = f"{start.date()} til {end.date()}"
+        if end_date is not None:
+            result = result[result[date_field] <= pd.to_datetime(end_date)]
+            start, end = result[date_field].min(), result[date_field].max()
+            period_label = f"{start.date()} til {end.date()}"
+        if result.empty:
+            raise ValueError(f"No data in the window {start_date} to {end_date}.")
+
+    elif years:
+        result = d[d[date_field].dt.year.isin(years)]
+        missing = sorted(set(years) - set(result[date_field].dt.year.unique()))
+        if missing:
+            raise ValueError(f"No data for year(s): {missing}.")
+        start, end = result[date_field].min(), result[date_field].max()
+        period_label = f"{months[start.month - 1]} {start.year} til {months[end.month - 1]} {end.year}"
+        print(f"Filtered data to include {years}")
+
+    elif current_year:
+        result = d[d[date_field].dt.year == today_year]
+        if result.empty:
+            raise ValueError(f"No data for year {today_year}.")
+        start, end = result[date_field].min(), result[date_field].max()
+        period_label = f"{months[start.month - 1]} {start.year} til {months[end.month - 1]} {end.year}"
+        print(f"Filtered data to include {today_year}")
+
+    elif yoy:
+        cur = d[d[date_field].dt.year == today_year]
+        if cur.empty:
+            raise ValueError(f"No data for year {today_year}.")
+        months_present = sorted(cur[date_field].dt.month.unique())
+        prev = d[(d[date_field].dt.year == today_year - 1) & (d[date_field].dt.month.isin(months_present))]
+        result = pd.concat([prev, cur]).sort_values(date_field)
+        start, end = result[date_field].min(), result[date_field].max()
+        period_label = f"{months[start.month - 1]} til {months[end.month - 1]} i {start.year} og {end.year}"
+        print(f"Filtered data to include data from {months[start.month - 1]} to {months[end.month - 1]} in {start.year} and {end.year}")
+
+    elif full_years:
+        result = d[d[date_field].dt.year < today_year]
+        if result.empty:
+            raise ValueError("No completed years in the dataset.")
+        start, end = result[date_field].min(), result[date_field].max()
+        period_label = f"{months[start.month - 1]} {start.year} til {months[end.month - 1]} {end.year}"
+        print(f"Filtered data to include {start.year} to {end.year}")
+
+    else:
+        print("No period filters applied")
+        result = d
+        start, end = result[date_field].min(), result[date_field].max()
+        period_label = f"{months[start.month - 1]} {start.year} til {months[end.month - 1]} {end.year}"
+
+    return result, period_label
+
+def _validate_timeseries(df, date_field=None, cycle="yearly", granularity="monthly", group_field=None):
+    """Utility function to validate if there is sufficient data for time series analyses.
+
+    Prints missing granularity periods within each cycle period, for the dataset as
+    a whole or separately for each group. Weekly granularity uses ISO week numbers
+    (Monday-start), not pandas' default Sunday-anchored weeks.
+
+    Args:
+        df: Dataframe
+        date_field: The date column to utilise
+        cycle: The larger period to check completeness within. One of:
+            "yearly", "quarterly", "monthly", "weekly", "daily"
+        granularity: The smaller period that should be present within each cycle.
+            One of: "quarterly", "monthly", "weekly", "daily", "hourly"
+        group_field: Optional column to check completeness separately per group
+        """
+    freq_map = {
+        "yearly": "Y", "quarterly": "Q", "monthly": "M",
+        "weekly": "W", "daily": "D", "hourly": "h"}
+    
+    order = ["yearly", "quarterly", "monthly", "weekly", "daily", "hourly"]
+
+    if date_field is None:
+        if "revenue_date" in df.columns:
+            date_field = "revenue_date"
+            print("Setting revenue_date as default date field.")
+        elif "campaign_start_ts" in df.columns:
+            date_field = "campaign_start_ts"
+            print("Setting campaign_start_ts as default date field.")
+        else:
+            candidates = [c for c in df.columns if "date" in c.lower()]
+            if candidates:
+                date_field = candidates[0]
+                print(f"Setting {date_field} as default date field.")
+            else:
+                raise ValueError("Provide date_field.")
+
+    if cycle not in ["yearly", "quarterly", "monthly", "weekly", "daily"]:
+        raise ValueError("cycle must be in: yearly, quarterly, monthly, weekly, daily.")
+
+    if granularity not in ["quarterly", "monthly", "weekly", "daily", "hourly"]:
+        raise ValueError("granularity must be in: quarterly, monthly, weekly, daily, hourly.")
+
+    if order.index(granularity) <= order.index(cycle):
+        raise ValueError(f"granularity ({granularity}) must be finer than cycle ({cycle}).")
+
+    d = df.copy()
+    d[date_field] = pd.to_datetime(d[date_field])
+    d["_cycle"] = d[date_field].dt.to_period(freq_map[cycle])
+
+    if granularity == "weekly":
+        iso = d[date_field].dt.isocalendar()
+        d["_gran"] = list(zip(iso["year"].astype(int), iso["week"].astype(int)))
+    else:
+        d["_gran"] = d[date_field].dt.to_period(freq_map[granularity])
+
+    groups = d[group_field].unique() if group_field else [None]
+
+    for group in groups:
+        sub = d[d[group_field] == group] if group_field else d
+        for cycle_val in sorted(sub["_cycle"].unique()):
+            cycle_rows = sub[sub["_cycle"] == cycle_val]
+            actual = set(cycle_rows["_gran"].unique())
+
+            if granularity == "weekly":
+                days = pd.date_range(cycle_val.start_time, cycle_val.end_time, freq="D")
+                mondays_iso = days[days.dayofweek == 0].isocalendar()
+                expected = set(zip(mondays_iso["year"].astype(int), mondays_iso["week"].astype(int)))
+                missing = sorted(set(expected) - actual)
+                missing_labels = [f"week {w} {y}" for y, w in missing]
+            else:
+                expected = pd.period_range(start=cycle_val.start_time, end=cycle_val.end_time, freq=freq_map[granularity])
+                missing = sorted(set(expected) - actual)
+                missing_labels = [str(m) for m in missing]
+
+            if missing:
+                group_label = f" for class {group}" if group_field else ""
+                print(f"Warning: Missing data{group_label} in {cycle_val}. Missing periods ({granularity}): {missing_labels}")
+
+def get_timeseries_periods(df, date_field=None, cycle="yearly", granularity="monthly", group_field=None):
+    """Utility function to:
+        - Get data periodized after granularity (e.g. by month) 
+        - Get period time_labels for plots (e.g. labels like jan, feb, ...)
+        - Validate data completeness in the cycle
+
+    Returns period time_labels for the unique periods present in df[date_field], sorted
+    chronologically, formatted according to Amedia visual conventions.
+
+    Args: 
+        df: Dataframe
+        date_field: Date field to base period time_labels on
+        granularity: Period intervals. Takes "yearly", "quarterly", "monthly", "weekly", "daily", "hourly".
+
+    Returns:
+        time_labels: List of formatted period label strings, sorted chronologically.
+        """
+    if date_field is None:
+        if "revenue_date" in df.columns:
+            date_field = "revenue_date"
+            print("Setting revenue_date as default date field.")
+        elif "campaign_start_ts" in df.columns:
+            date_field = "campaign_start_ts"
+            print("Setting campaign_start_ts as default date field.")
+        else:
+            candidates = [c for c in df.columns if "date" in c.lower()]
+            if candidates:
+                date_field = candidates[0]
+                print(f"Setting {date_field} as default date field.")
+            else:
+                raise ValueError("Provide date_field.")
+
+    if granularity not in ["yearly", "quarterly", "monthly", "weekly", "daily", "hourly"]:
+        raise ValueError("granularity must be in: yearly, quarterly, monthly, weekly, daily, hourly.")
+
+    freq_map = {
+        "yearly": "Y", "quarterly": "Q", "monthly": "M",
+        "weekly": "W", "daily": "D", "hourly": "h"}
+
+    # time_labels
+    months = ["jan", "feb", "mar", "apr", "mai", "jun", "jul", "aug", "sep", "okt", "nov", "des"]
+
+    d = pd.to_datetime(df[date_field])
+    multi_year = d.dt.year.nunique() > 1
+
+    if granularity == "yearly":
+        period_label = "År"
+        time_labels = [str(y) for y in sorted(d.dt.year.unique())]
+
+    elif granularity == "quarterly":
+        period_label = "Kvartal"
+        periods = sorted(d.dt.to_period("Q").unique())
+        time_labels = []
+        prev_year = None
+        for p in periods:
+            quarter_label = f"Q{p.quarter}"
+            if multi_year and p.year != prev_year:
+                quarter_label = f"{quarter_label}\n{p.year}"
+            time_labels.append(period_label)
+            prev_year = p.year
+
+    elif granularity == "monthly":
+        period_label = "Måned"
+        periods = sorted(d.dt.to_period("M").unique())
+        time_labels = []
+        prev_year = None
+        for p in periods:
+            month_label = months[p.month - 1]
+            if multi_year and p.year != prev_year:
+                month_label = f"{month_label}\n{p.year}"
+            time_labels.append(month_label)
+            prev_year = p.year
+
+    elif granularity == "weekly":
+        period_label = "Uke"
+        iso = d.dt.isocalendar()
+        weeks = sorted(set(zip(iso["year"], iso["week"])))
+        time_labels = []
+        for y, w in weeks:
+            mask = (iso["year"] == y) & (iso["week"] == w)
+            month = d[mask].iloc[0].month
+            time_labels.append(f"Uke {w}\n({months[month - 1]})")
+
+    elif granularity == "daily":
+        period_label = "Dato"
+        days = sorted(d.dt.normalize().unique())
+        fmt = "%d/%m/%Y" if multi_year else "%d/%m"
+        time_labels = [pd.Timestamp(day).strftime(fmt) for day in days]
+
+    elif granularity == "hourly":
+        period_label = "Time"
+        hours = sorted(d.dt.hour.unique())
+        time_labels = [f"{h:02d}.00" for h in hours]
+
+    # Period/frequency
+    d = df.copy()
+    d[date_field] = pd.to_datetime(d[date_field])
+    d[period_label] = d[date_field].dt.to_period(freq_map[granularity]).dt.to_timestamp()
+    print(f"Added period label by {granularity}. Label: {period_label}")
+
+    # Validate
+    _validate_timeseries(df, date_field=date_field, cycle=cycle, granularity=granularity, group_field=group_field)
+
+    return d, period_label, time_labels

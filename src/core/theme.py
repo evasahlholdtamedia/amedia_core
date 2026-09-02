@@ -14,14 +14,21 @@ class DotDict(dict):
         except KeyError:
             return self[name.lower()]
 
+plot_standards_dict = {
+    "w": 14, "h": 8,
+    "line_width": 1, "marker_size": 1, 
+    "bar_width": 0.5, "bar_gap": 0.1, "cluster_bar_gap": 0.01,
+    "legend_cols": 1}
+
+ps = DotDict(plot_standards_dict)
+
 colors_dict = {
     "MAGENTA": "#BE0064", "GRONN": "#004E46", "SVART": "#000000", 
     "HVIT": "#FFFFFF", "LYS_GUL": "#F8F9DF", "VARMGRA": "#EBDCD7", 
     "MORK_MAGENTA": "#500020", "MORK_GRONN": "#002C22", 
     "BLA": "#1B4F8F", "LYS_BLA": "#7FA9D4", "ROD": "#D6402E",
     "ORANSJE": "#E8873B", "LYS_GRONN": "#6FA85C", "GULL": "#C9A227",
-    "PLOMME": "#6B4C7A", "MORK_GRA": "#3F3A38", "GRA": "#8A807A",
-}
+    "PLOMME": "#6B4C7A", "MORK_GRA": "#3F3A38", "GRA": "#8A807A"}
 
 colors = DotDict(colors_dict)
 
@@ -29,25 +36,21 @@ palette = [
     colors.magenta, 
     colors.gronn, 
     colors.varmgra,
+    colors.oransje,
+    colors.bla, 
+    colors.lys_gronn,
     colors.mork_magenta, 
     colors.mork_gronn,
     colors.lys_gul,
+    colors.lys_bla,
+    colors.rod,
+    colors.plomme,
+    colors.mork_gra,
+    colors.gull,
     colors.svart,
-    colors.hvit
-]
-
-fontsizes_dict = {
-    "title": 16, "subtitle": 12, "labels": 8, "legends": 8, "ticks": 8}
-
-fontsizes = DotDict(fontsizes_dict)
+    colors.hvit]
 
 fonts = DotDict()
-
-plotsize_dict = {
-    "w_standard": 12, "w_narrow": 8, "w_wide": 20,
-    "h_standard": 8, "h_low": 6, "h_tall": 12}
-
-plotsizes = DotDict(plotsize_dict)
 
 def apply_style():
     """Applies Amedia visual identity to plotting backends."""
@@ -71,32 +74,13 @@ def apply_style():
         'axes.facecolor': 'white', 'figure.facecolor': 'white',
         'text.color': colors.svart, 'axes.labelcolor': colors.svart,
         'axes.edgecolor': colors.varmgra, 'grid.color': colors.varmgra,
-        'grid.linestyle': '--', 'grid.linewidth': 0.5
+        'grid.linestyle': '--', 'grid.linewidth': 0.5,
+        'axes.titleweight': 'bold', 'axes.labelweight': 'bold',
+        'legend.loc': 'upper right', 'legend.fontsize': 8,
+        'axes.grid': True, 'axes.grid.axis': 'y', 'axes.axisbelow': True,
+        'axes.titlesize': 16, 'axes.labelsize': 8, 'xtick.labelsize': 8, 
+        'ytick.labelsize': 8, 'figure.titlesize': 12,
     })
 
-    print("Amedia visual style applied to:")
-    print("matplotlib")
+    print("Amedia visual style applied to matplotlib")
     
-    try:
-        import seaborn as sns
-        sns.set_style("whitegrid", {'axes.facecolor': 'white', 'grid.color': colors.varmgra, 'font.family': 'Instrument Sans'})
-        sns.set_palette(palette)
-        print("seaborn")
-    except ImportError: 
-        pass
-
-    try:
-        import plotly.io as pio
-        pio.templates["amedia"] = {
-            "layout": {
-                "colorway": palette,
-                "paper_bgcolor": "white", "plot_bgcolor": "white",
-                "font": {"family": "Instrument Sans", "color": colors.svart},
-                "xaxis": {"gridcolor": colors.varmgra, "linecolor": colors.varmgra},
-                "yaxis": {"gridcolor": colors.varmgra, "linecolor": colors.varmgra},
-            }
-        }
-        pio.templates.default = "amedia"
-        print("plotly")
-    except ImportError: 
-        pass

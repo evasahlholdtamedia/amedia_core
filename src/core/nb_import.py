@@ -25,6 +25,7 @@ from matplotlib_inline.backend_inline import set_matplotlib_formats
 set_matplotlib_formats('retina')
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
+import matplotlib.transforms as mtransforms
 
 from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import train_test_split
