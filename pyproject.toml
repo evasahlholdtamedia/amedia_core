@@ -17,6 +17,7 @@ dependencies = [
     "scipy",
     "google-cloud-bigquery",
     "db-dtypes",
+    "linearmodels>=7.0",
 ]
 
 [build-system]

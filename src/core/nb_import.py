@@ -13,6 +13,7 @@ import numpy as np
 from datetime import datetime, date
 from dateutil.relativedelta import relativedelta
 from itertools import combinations
+import ast
 
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
@@ -34,5 +35,6 @@ from statsmodels.tsa.seasonal import STL
 import statsmodels.api as sm
 import statsmodels.formula.api as smf
 import scipy.stats as stats
+from linearmodels.panel import PanelOLS
 
 apply_style()
