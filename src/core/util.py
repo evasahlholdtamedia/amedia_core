@@ -556,7 +556,7 @@ def get_timeseries_periods(df, date_field=None, cycle="yearly", granularity="mon
             quarter_label = f"Q{p.quarter}"
             if multi_year and p.year != prev_year:
                 quarter_label = f"{quarter_label}\n{p.year}"
-            time_labels.append(period_label)
+            time_labels.append(quarter_label)
             prev_year = p.year
 
     elif granularity == "monthly":

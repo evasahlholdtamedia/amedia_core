@@ -27,6 +27,7 @@ set_matplotlib_formats('retina')
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
 import matplotlib.transforms as mtransforms
+from matplotlib.ticker import FuncFormatter
 
 from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import train_test_split
@@ -34,6 +35,7 @@ import sklearn.metrics as metrics
 from statsmodels.tsa.seasonal import STL
 import statsmodels.api as sm
 import statsmodels.formula.api as smf
+from statsmodels.stats.outliers_influence import variance_inflation_factor
 import scipy.stats as stats
 from linearmodels.panel import PanelOLS
 
