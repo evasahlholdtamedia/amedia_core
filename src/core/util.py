@@ -5,6 +5,7 @@ import os
 import re
 import pandas as pd
 from core.get_client import get_client, BILLING_PROJECT
+from google.cloud import bigquery
 from google.api_core import exceptions
 from pathlib import Path
 from datetime import datetime, date
@@ -43,6 +44,14 @@ def run_sql(query: str, billing_project: str = BILLING_PROJECT):
         pd.DataFrame: Dataframe with queryed data.    
     '''
     client = get_client(billing_project)
+
+    dry_run = client.query(
+        query,
+        job_config=bigquery.QueryJobConfig(dry_run=True, use_query_cache=False),
+    )
+    gb = dry_run.total_bytes_processed / 1e9
+    print(f"Estimated scan: {gb:.2f} GB")
+
     print("Running query...")
     return client.query(query).to_dataframe()
 
