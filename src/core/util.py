@@ -50,7 +50,9 @@ def run_sql(query: str, billing_project: str = BILLING_PROJECT):
         job_config=bigquery.QueryJobConfig(dry_run=True, use_query_cache=False),
     )
     gb = dry_run.total_bytes_processed / 1e9
+    cost_usd = dry_run.total_bytes_processed / 2**40 * 6.25
     print(f"Estimated scan: {gb:.2f} GB")
+    print(f"Estimated cost: ~${cost_usd:.3f}")
 
     print("Running query...")
     return client.query(query).to_dataframe()
@@ -289,9 +291,7 @@ _unit_scale = {
 def format_numbers(value, scale=None, decimals=2, unit=None):
     '''
     Formats a number using Norwegian conventions: Space as thousands separator
-    and comma as decimal separator.
-
-    Mainly intended for visualisations.
+    and comma as decimal separator. Mainly intended for visualisations.
 
     Args:
         value (float | int): The number to format.
